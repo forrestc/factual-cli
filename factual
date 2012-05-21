@@ -1,0 +1,76 @@
+#!/usr/bin/env ruby
+$LOAD_PATH.unshift(File.dirname(__FILE__) + '../factual-ruby-driver/lib')
+
+require 'factual'
+require 'yaml'
+require 'optparse'
+require 'ostruct'
+
+options = OpenStruct.new
+options.limit = 1
+options.select = []
+parser = OptionParser.new do |opts|
+  opts.on("-l", "--limit [LIMIT]", "Limit") do |v|
+    options.limit = v
+  end
+
+  opts.on("-s", "--select [FIELDS]", "Selected Fields") do |v|
+    options.select << v
+  end
+end.parse(ARGV)
+
+params = parser.to_a
+
+CREDENTIALS_FILE = ENV["HOME"] + '/.factual/key_secret.yaml'
+credentials = YAML.load(File.read(CREDENTIALS_FILE))
+key = credentials["key"]
+secret = credentials["secret"]
+@factual = Factual.new(key, secret)
+
+def query(params)
+  inputs = (STDIN.tty?) ? params : STDIN.readlines
+  inputs.each do |input|
+    yield(input)
+  end
+end
+
+COMMAND = params.shift
+if !COMMAND or COMMAND == "help"
+  puts "Factual CLI Tool is a bash wrapper for Factual APIs.
+
+  Usage:
+    factual help
+    factual command [options] [arguments] 
+
+  Commands:
+    search - search keyword in table
+    geocode - giving a LatLng, returns address information of this point
+    geopulse - giving a LatLng, returns geo pulse
+    
+  Examples:
+    factual search places --limit 10 starbucks
+    factual geocode 34.070507,-118.2934
+    factual geopulse --select commercial_density,income 34.070507,-118.2934 
+  "
+
+elsif COMMAND == "search"
+  TABLE = params.shift
+  query(params) do |input|
+    q = @factual.table(TABLE).search(input).limit(options.limit)
+    q = q.select(options.select.join(",")) unless options.select.empty?
+    puts q.rows.collect{|r| r.values.join(",")}.join("\n")
+  end
+elsif COMMAND == "geocode"
+  query(params) do |latlng|
+    lat,lng = latlng.strip.split(",")
+    query = @factual.geocode(lat, lng)
+    puts query.first.values.join(",")
+  end
+elsif COMMAND == "geopulse"
+  query(params) do |latlng|
+    lat,lng = latlng.strip.split(",")
+    query = @factual.geopulse(lat, lng)
+    query = query.select(options.select.join(",")) unless options.select.empty?
+    puts query.first.values.join(",")
+  end
+end
