@@ -1,10 +1,12 @@
 #!/usr/bin/env ruby
-$LOAD_PATH.unshift(File.dirname(__FILE__) + '../factual-ruby-driver/lib')
+PATH = File.dirname(__FILE__) + '/../factual-ruby-driver/lib'
+$LOAD_PATH.unshift(PATH)
 
-require 'factual'
+require PATH + '/factual'
 require 'yaml'
 require 'optparse'
 require 'ostruct'
+require 'csv'
 
 options = OpenStruct.new
 options.limit = 1
@@ -58,19 +60,19 @@ elsif COMMAND == "search"
   query(params) do |input|
     q = @factual.table(TABLE).search(input).limit(options.limit)
     q = q.select(options.select.join(",")) unless options.select.empty?
-    puts q.rows.collect{|r| r.values.join(",")}.join("\n")
+    puts q.rows.collect{|r| r.values.to_csv}.join
   end
 elsif COMMAND == "geocode"
   query(params) do |latlng|
     lat,lng = latlng.strip.split(",")
-    query = @factual.geocode(lat, lng)
-    puts query.first.values.join(",")
+    q = @factual.geocode(lat, lng)
+    puts q.first.values.join(",")
   end
 elsif COMMAND == "geopulse"
   query(params) do |latlng|
     lat,lng = latlng.strip.split(",")
-    query = @factual.geopulse(lat, lng)
-    query = query.select(options.select.join(",")) unless options.select.empty?
-    puts query.first.values.join(",")
+    q = @factual.geopulse(lat, lng)
+    q = q.select(options.select.join(",")) unless options.select.empty?
+    puts q.first.values.join(",")
   end
 end
